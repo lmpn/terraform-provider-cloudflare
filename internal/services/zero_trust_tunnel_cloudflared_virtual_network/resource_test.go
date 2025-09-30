@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"github.com/cloudflare/cloudflare-go"
+	v6 "github.com/cloudflare/cloudflare-go/v6"
+	"github.com/cloudflare/cloudflare-go/v6/zero_trust"
 	"github.com/cloudflare/terraform-provider-cloudflare/internal/acctest"
 	"github.com/cloudflare/terraform-provider-cloudflare/internal/consts"
 	"github.com/cloudflare/terraform-provider-cloudflare/internal/utils"
@@ -20,7 +22,6 @@ import (
 func TestMain(m *testing.M) {
 	resource.TestMain(m)
 }
-
 
 func init() {
 	resource.AddTestSweepers("cloudflare_zero_trust_tunnel_cloudflared_virtual_network", &resource.Sweeper{
@@ -65,7 +66,7 @@ func TestAccCloudflareTunnelVirtualNetwork_Exists(t *testing.T) {
 	name := fmt.Sprintf("cloudflare_zero_trust_tunnel_cloudflared_virtual_network.%s", rnd)
 	accountID := os.Getenv("CLOUDFLARE_ACCOUNT_ID")
 
-	var TunnelVirtualNetwork cloudflare.TunnelVirtualNetwork
+	var TunnelVirtualNetwork zero_trust.VirtualNetwork
 
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() {
@@ -88,7 +89,7 @@ func TestAccCloudflareTunnelVirtualNetwork_Exists(t *testing.T) {
 	})
 }
 
-func testAccCheckCloudflareTunnelVirtualNetworkExists(name string, virtualNetwork *cloudflare.TunnelVirtualNetwork) resource.TestCheckFunc {
+func testAccCheckCloudflareTunnelVirtualNetworkExists(name string, virtualNetwork *zero_trust.VirtualNetwork) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
 		rs, ok := s.RootModule().Resources[name]
 		if !ok {
@@ -99,20 +100,18 @@ func testAccCheckCloudflareTunnelVirtualNetworkExists(name string, virtualNetwor
 			return errors.New("No Tunnel Virtual Network is set")
 		}
 
-		client, clientErr := acctest.SharedV1Client() // TODO(terraform): replace with SharedV2Clent
-		if clientErr != nil {
-			tflog.Error(context.TODO(), fmt.Sprintf("failed to create Cloudflare client: %s", clientErr))
+		params := zero_trust.NetworkVirtualNetworkListParams{
+			AccountID: v6.F(os.Getenv("CLOUDFLARE_ACCOUNT_ID")),
+			ID:        v6.F(rs.Primary.ID),
+			IsDeleted: v6.F(false),
 		}
-		foundTunnelVirtualNetworks, err := client.ListTunnelVirtualNetworks(context.Background(), cloudflare.AccountIdentifier(rs.Primary.Attributes[consts.AccountIDSchemaKey]), cloudflare.TunnelVirtualNetworksListParams{
-			IsDeleted: cloudflare.BoolPtr(false),
-			ID:        rs.Primary.ID,
-		})
-
+		client := acctest.SharedClient() // TODO(terraform): replace with SharedV2Clent
+		foundTunnelVirtualNetworks, err := client.ZeroTrust.Networks.VirtualNetworks.List(context.Background(), params)
 		if err != nil {
 			return err
 		}
 
-		*virtualNetwork = foundTunnelVirtualNetworks[0]
+		*virtualNetwork = foundTunnelVirtualNetworks.Result[0]
 
 		return nil
 	}
@@ -123,7 +122,7 @@ func TestAccCloudflareTunnelVirtualNetwork_UpdateComment(t *testing.T) {
 	name := fmt.Sprintf("cloudflare_zero_trust_tunnel_cloudflared_virtual_network.%s", rnd)
 	accountID := os.Getenv("CLOUDFLARE_ACCOUNT_ID")
 
-	var TunnelVirtualNetwork cloudflare.TunnelVirtualNetwork
+	var TunnelVirtualNetwork zero_trust.VirtualNetwork
 
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() {
